@@ -5,23 +5,23 @@ A TypeScript API client for the Base Platform, providing a clean interface for i
 ## 📸 Screenshots
 
 ### Dashboard
-[Dashboard](./docs/screenshots/dashboard.png)
+[Dashboard](../docs/screenshots/dashboard.png)
 *The main dashboard showing system metrics, API usage, and recent activity*
 
 ### API Explorer
-[API Explorer](./docs/screenshots/api-explorer.png)
+[API Explorer](../docs/screenshots/api-explorer.png)
 *Interactive API testing interface at `/api-management/explorer`*
 
 ### Entity Builder
-[Entity Builder](./docs/screenshots/entity-builder.png)
+[Entity Builder](../docs/screenshots/entity-builder.png)
 *Visual entity creation and schema management at `/entities/builder`*
 
 ### User Management
-[User Management](./docs/screenshots/user-management.png)
+[User Management](../docs/screenshots/user-management.png)
 *Admin interface for managing users, roles, and permissions at `/users`*
 
 ### Security Settings
-[Security Settings](./docs/screenshots/security-settings.png)
+[Security Settings](../docs/screenshots/security-settings.png)
 *Runtime security configuration at `/security`*
 
 ## Installation
