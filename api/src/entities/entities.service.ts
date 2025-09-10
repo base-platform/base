@@ -238,9 +238,9 @@ export class EntitiesService {
 
     return {
       data: records,
-      pagination: {
+      meta: {
         page,
-        limit,
+        pageSize: limit,
         total,
         totalPages: Math.ceil(total / limit),
       },

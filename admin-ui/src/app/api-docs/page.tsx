@@ -27,8 +27,9 @@ export default function ApiDocsPage() {
   const [activeTab, setActiveTab] = useState("endpoints");
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
-  const SWAGGER_URL = API_BASE_URL.replace('/api/v1', '/api/docs');
-  const SPEC_URL = API_BASE_URL.replace('/api/v1', '/api/docs-json');
+  const SERVER_BASE_URL = API_BASE_URL.replace('/api/v1', '');
+  const SWAGGER_URL = `${SERVER_BASE_URL}/api/docs`;
+  const SPEC_URL = `${SERVER_BASE_URL}/api/docs-json`;
 
   useEffect(() => {
     loadApiSpec();
@@ -126,7 +127,7 @@ export default function ApiDocsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => copyToClipboard(
-                        `${API_BASE_URL}${endpoint.path}`,
+                        `${SERVER_BASE_URL}${endpoint.path}`,
                         `${endpoint.path}-${endpoint.method}`
                       )}
                     >
@@ -201,7 +202,14 @@ export default function ApiDocsPage() {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>{apiSpec.info?.title}</CardTitle>
-            <CardDescription>{apiSpec.info?.description}</CardDescription>
+            <CardDescription>
+              <div 
+                className="prose prose-sm max-w-none dark:prose-invert"
+                dangerouslySetInnerHTML={{
+                  __html: apiSpec.info?.description?.replace(/\n/g, '<br />').replace(/•/g, '&bull;') || ''
+                }}
+              />
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

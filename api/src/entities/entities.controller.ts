@@ -75,10 +75,11 @@ export class EntitiesController {
     @Param('entityId') entityId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     const pagination = {
       page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 10,
+      limit: limit ? parseInt(limit, 10) : pageSize ? parseInt(pageSize, 10) : 10,
     };
     return this.entitiesService.getEntityRecords(entityId, pagination);
   }
