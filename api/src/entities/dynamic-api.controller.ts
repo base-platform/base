@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
   Request,
   HttpCode,
   HttpStatus,
@@ -17,9 +18,11 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { EntitiesService } from './entities.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiKeyAuthGuard } from '../auth/guards/api-key-auth.guard';
+import { DynamicIdempotencyInterceptor } from './interceptors/dynamic-idempotency.interceptor';
 
 @ApiTags('Dynamic Resources')
 @Controller()
+@UseInterceptors(DynamicIdempotencyInterceptor)
 export class DynamicApiController {
   constructor(private entitiesService: EntitiesService) {}
 

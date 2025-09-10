@@ -87,6 +87,7 @@ model User {
   audit_logs       AuditLog[]
   rate_limit_rules RateLimitRule[]
   oauth_accounts   OAuthAccount[]
+  idempotency_keys IdempotencyKey[]
   created_rate_limits RateLimitConfig[] @relation("rate_limit_creator")
   updated_rate_limits RateLimitConfig[] @relation("rate_limit_updater")
   created_settings    SystemSetting[]   @relation("setting_creator")
@@ -179,14 +180,21 @@ model Entity {
   schema       Json     @db.JsonB
   version      Int      @default(1)
   is_active    Boolean  @default(true)
+  
+  // Idempotency configuration
+  idempotency_enabled Boolean @default(false) // Enable idempotency for this entity
+  idempotency_ttl     Int?    @default(86400000) // TTL in milliseconds (default 24 hours)
+  idempotency_methods String[] @default(["POST", "PUT"]) // HTTP methods to apply idempotency
+  
   created_by   String   @db.Uuid
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
   // Relations
-  creator        User           @relation(fields: [created_by], references: [id])
-  entity_records EntityRecord[]
-  api_endpoints  ApiEndpoint[]
+  creator          User             @relation(fields: [created_by], references: [id])
+  entity_records   EntityRecord[]
+  api_endpoints    ApiEndpoint[]
+  idempotency_keys IdempotencyKey[]
 
   @@map("entities")
   @@index([name])
@@ -315,19 +323,47 @@ model RateLimitRule {
 
 // Idempotency keys for safe request retries
 model IdempotencyKey {
-  id         String   @id @default(uuid()) @db.Uuid
-  key        String   @unique @db.VarChar(255)
-  request    Json     @db.JsonB
-  response   Json?    @db.JsonB
-  status     String   @db.VarChar(50)
-  user_id    String?  @db.Uuid
-  created_at DateTime @default(now())
-  expires_at DateTime
+  id           String   @id @default(uuid()) @db.Uuid
+  key          String   @unique @db.VarChar(255)
+  endpoint     String   @db.VarChar(255) // Track which endpoint was called
+  method       String   @db.VarChar(10)  // HTTP method
+  request      Json     @db.JsonB
+  response     Json?    @db.JsonB
+  status       String   @db.VarChar(50) // processing, completed, failed
+  status_code  Int?     // HTTP response status code
+  user_id      String?  @db.Uuid
+  entity_id    String?  @db.Uuid // Track if this was for a specific entity
+  created_at   DateTime @default(now())
+  expires_at   DateTime
+  completed_at DateTime?
+
+  // Relations
+  user   User?   @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  entity Entity? @relation(fields: [entity_id], references: [id], onDelete: SetNull)
 
   @@map("idempotency_keys")
   @@index([key])
   @@index([expires_at])
   @@index([user_id])
+  @@index([endpoint])
+  @@index([status])
+}
+
+// Global idempotency configuration
+model IdempotencyConfig {
+  id                String   @id @default(uuid()) @db.Uuid
+  endpoint          String   @unique @db.VarChar(255) // e.g., '/auth/register', '/api-keys', '*' for default
+  enabled           Boolean  @default(true)
+  ttl               Int      @default(86400000) // TTL in milliseconds (default 24 hours)
+  methods           String[] @default(["POST", "PUT"]) // HTTP methods to apply
+  require_key       Boolean  @default(false) // Make idempotency key required
+  cleanup_interval  Int      @default(3600000) // Cleanup interval in milliseconds (1 hour)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@map("idempotency_configs")
+  @@index([endpoint])
+  @@index([enabled])
 }
 
 // Audit logging for compliance and debugging

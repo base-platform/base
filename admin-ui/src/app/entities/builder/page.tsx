@@ -24,6 +24,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EntityRecordsTable } from "@/components/entities/entity-records-table";
 import { 
   Plus, 
@@ -41,7 +47,9 @@ import {
   MoreVertical,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Shield,
+  Info
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
@@ -81,6 +89,9 @@ interface Entity {
   schema: any;
   version: number;
   is_active: boolean;
+  idempotency_enabled?: boolean;
+  idempotency_ttl?: number;
+  idempotency_methods?: string[];
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -303,6 +314,9 @@ export default function EntityBuilderPage() {
     description: "",
     schema: JSON.stringify(defaultSchema, null, 2),
     isActive: true,
+    idempotencyEnabled: false,
+    idempotencyTtl: 86400000, // 24 hours in milliseconds
+    idempotencyMethods: ["POST", "PUT"],
   });
 
   // Helper function to convert display name to kebab case
@@ -893,6 +907,32 @@ export default function EntityBuilderPage() {
                           >
                             {entity.is_active ? "Active" : "Inactive"}
                           </Badge>
+                          {entity.idempotency_enabled && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge 
+                                    variant="outline"
+                                    className="text-xs cursor-help"
+                                  >
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Idempotent
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs p-2">
+                                  <p className="text-xs font-medium mb-1">Idempotency Enabled</p>
+                                  <p className="text-xs text-gray-300">
+                                    TTL: {entity.idempotency_ttl ? `${entity.idempotency_ttl / 1000 / 60} minutes` : '24 hours'}
+                                    <br />
+                                    Methods: {entity.idempotency_methods?.join(', ') || 'POST, PUT'}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Duplicate requests with the same Idempotency-Key will return cached responses.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </div>
                       <DropdownMenu>
@@ -1258,6 +1298,166 @@ export default function EntityBuilderPage() {
               />
               <Label htmlFor="isActive">Active (Enable API endpoints immediately)</Label>
             </div>
+          </div>
+
+          {/* Idempotency Configuration */}
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">Idempotency Settings</h3>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-3 w-3 text-gray-400" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs p-3">
+                        <p className="text-xs font-medium mb-2">What is Idempotency?</p>
+                        <p className="text-xs text-gray-300">
+                          Idempotency ensures that multiple identical requests have the same effect as a single request.
+                          This prevents duplicate records, double charges, and data corruption from network retries.
+                        </p>
+                        <p className="text-xs font-medium mt-2 mb-1">Use cases:</p>
+                        <ul className="text-xs text-gray-300 space-y-1">
+                          <li>• Payment processing</li>
+                          <li>• Order creation</li>
+                          <li>• User registration</li>
+                          <li>• Any critical operation</li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Prevent duplicate operations when clients retry requests
+                </p>
+              </div>
+              <Switch
+                id="idempotencyEnabled"
+                checked={newEntity.idempotencyEnabled}
+                onCheckedChange={(checked) => setNewEntity({ ...newEntity, idempotencyEnabled: checked })}
+              />
+            </div>
+
+            {newEntity.idempotencyEnabled && (
+              <div className="space-y-4 pl-4 border-l-2 border-gray-200">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label htmlFor="idempotencyTtl">TTL (Time to Live)</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3 w-3 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs p-3">
+                          <p className="text-xs font-medium mb-2">Response Cache Duration</p>
+                          <p className="text-xs text-gray-300 mb-2">
+                            How long the server remembers and returns the same response for duplicate requests.
+                          </p>
+                          <p className="text-xs font-medium mb-1">Recommendations:</p>
+                          <ul className="text-xs text-gray-300 space-y-1">
+                            <li><strong>1-5 min:</strong> Token refresh, temp operations</li>
+                            <li><strong>1 hour:</strong> Standard API calls</li>
+                            <li><strong>24 hours:</strong> User registration, orders</li>
+                            <li><strong>7 days:</strong> Critical long-running operations</li>
+                          </ul>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Select
+                    value={String(newEntity.idempotencyTtl)}
+                    onValueChange={(value) => setNewEntity({ ...newEntity, idempotencyTtl: parseInt(value) })}
+                  >
+                    <SelectTrigger id="idempotencyTtl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="60000">1 minute - Quick operations</SelectItem>
+                      <SelectItem value="300000">5 minutes - Short transactions</SelectItem>
+                      <SelectItem value="900000">15 minutes - Medium operations</SelectItem>
+                      <SelectItem value="3600000">1 hour - Standard operations</SelectItem>
+                      <SelectItem value="86400000">24 hours - Important operations</SelectItem>
+                      <SelectItem value="604800000">7 days - Critical operations</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Responses are cached for this duration. After expiration, new requests will be processed normally.
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label>HTTP Methods</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3 w-3 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs p-3">
+                          <p className="text-xs font-medium mb-2">Method Guidelines</p>
+                          <ul className="text-xs text-gray-300 space-y-1">
+                            <li><strong>POST:</strong> Creating new records (recommended)</li>
+                            <li><strong>PUT:</strong> Full updates (recommended)</li>
+                            <li><strong>PATCH:</strong> Partial updates (use with caution)</li>
+                            <li><strong>DELETE:</strong> Already idempotent by nature</li>
+                          </ul>
+                          <p className="text-xs text-gray-300 mt-2">
+                            GET requests don't need idempotency as they don't modify data.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="flex gap-2">
+                    {["POST", "PUT", "PATCH", "DELETE"].map(method => (
+                      <label key={method} className="flex items-center space-x-1">
+                        <input
+                          type="checkbox"
+                          checked={newEntity.idempotencyMethods.includes(method)}
+                          onChange={(e) => {
+                            const methods = e.target.checked
+                              ? [...newEntity.idempotencyMethods, method]
+                              : newEntity.idempotencyMethods.filter(m => m !== method);
+                            setNewEntity({ ...newEntity, idempotencyMethods: methods });
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm">{method}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    POST and PUT modify data and benefit most from idempotency protection.
+                  </p>
+                </div>
+                
+                {/* Usage Example */}
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
+                  <h4 className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    How clients should use this:
+                  </h4>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                    Send a unique <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">Idempotency-Key</code> header with each request:
+                  </p>
+                  <pre className="text-xs bg-blue-100 dark:bg-blue-900 p-2 rounded overflow-x-auto">
+{`// JavaScript Example
+const response = await fetch('/api/v1/${newEntity.name || 'entity'}/records', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Idempotency-Key': crypto.randomUUID() // Unique key
+  },
+  body: JSON.stringify({ data: {...} })
+});
+
+// Safe to retry with same key if request fails`}</pre>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    \u2713 The server will return the cached response for duplicate requests with the same key
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Schema Builder */}

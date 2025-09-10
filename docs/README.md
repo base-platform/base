@@ -43,6 +43,7 @@ Create and manage data structures at runtime using JSON Schema. The platform aut
 - **Refresh token rotation** for enhanced security
 - **Role-based access control** (RBAC)
 - **Rate limiting** per endpoint
+- **Idempotency support** to prevent duplicate operations
 - **Audit logging** for compliance
 
 ### Developer Experience
@@ -877,6 +878,8 @@ const { data } = useQuery({
 - [Admin UI Documentation](./admin-ui-documentation.md) - Complete guide for the administrative interface
 - [API Documentation](./api-documentation.md) - Backend API reference and guides
 - [API Client Documentation](./api-client-documentation.md) - Client library usage and examples
+- [Idempotency Guide](./IDEMPOTENCY.md) - Prevent duplicate operations and ensure data integrity
+- [Platform Architecture](./PLATFORM_ARCHITECTURE.md) - System design and technical architecture
 
 ### Community
 - GitHub Issues - Report bugs and request features

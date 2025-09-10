@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // Core modules
 import { DatabaseModule } from './core/database/database.module';
@@ -18,6 +19,7 @@ import { SanitizationInterceptor } from './core/security/sanitization.intercepto
 import { AuthModule } from './auth/auth.module';
 import { EntitiesModule } from './entities/entities.module';
 import { UsersModule } from './modules/users/users.module';
+import { IdempotencyModule } from './common/idempotency.module';
 
 // Controllers
 import { AppController } from './app.controller';
@@ -54,10 +56,14 @@ import { AppService } from './app.service';
       },
     }),
 
+    // Schedule module for cron jobs
+    ScheduleModule.forRoot(),
+    
     // Core modules
     DatabaseModule,
     RateLimitModule,
     SecurityModule,
+    IdempotencyModule,
 
     // Feature modules - Order matters! UsersModule must come before EntitiesModule
     // to ensure admin/users routes are registered before dynamic catch-all routes

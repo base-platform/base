@@ -29,6 +29,9 @@ export class EntitiesService {
         description: dto.description,
         schema: dto.schema,
         is_active: dto.isActive ?? true,
+        idempotency_enabled: dto.idempotencyEnabled ?? false,
+        idempotency_ttl: dto.idempotencyTtl ?? 86400000, // 24 hours default
+        idempotency_methods: dto.idempotencyMethods ?? ['POST', 'PUT'],
         created_by: userId,
       },
     });
@@ -54,6 +57,9 @@ export class EntitiesService {
         description: dto.description,
         schema: dto.schema,
         is_active: dto.isActive,
+        idempotency_enabled: dto.idempotencyEnabled,
+        idempotency_ttl: dto.idempotencyTtl,
+        idempotency_methods: dto.idempotencyMethods,
         version: { increment: 1 },
       },
     });

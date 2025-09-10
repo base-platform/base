@@ -27,6 +27,7 @@ import {
   BulkRotateKeysDto,
   ExpireApiKeyDto,
 } from './dto/auth.dto';
+import { Idempotent } from '../common/decorators/idempotent.decorator';
 
 @ApiTags('API Key Management')
 @Controller('auth/api-keys')
@@ -39,6 +40,7 @@ export class ApiKeyManagementController {
   ) {}
 
   @Post()
+  @Idempotent({ ttl: 86400000 }) // 24 hours - prevent duplicate API key creation
   @ApiOperation({ summary: 'Create a new API key' })
   @ApiResponse({
     status: 201,
@@ -58,6 +60,7 @@ export class ApiKeyManagementController {
   }
 
   @Post(':id/rotate')
+  @Idempotent({ ttl: 3600000, requireKey: true }) // 1 hour - require key for safety
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate an API key' })
   @ApiResponse({
@@ -89,6 +92,7 @@ export class ApiKeyManagementController {
   }
 
   @Post('rotate-bulk')
+  @Idempotent({ ttl: 3600000, requireKey: true }) // 1 hour - require key for bulk operations
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Bulk rotate multiple API keys' })
   @ApiResponse({

@@ -9,17 +9,16 @@ import {
 } from '@nestjs/common';
 import { Observable, of, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { Reflector } from '@nestjs/core';
-import { IdempotencyService } from '../services/idempotency.service';
-import { IDEMPOTENT_KEY, IdempotentOptions } from '../decorators/idempotent.decorator';
+import { IdempotencyService } from '../../common/services/idempotency.service';
+import { EntitiesService } from '../entities.service';
 
 @Injectable()
-export class IdempotencyInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(IdempotencyInterceptor.name);
+export class DynamicIdempotencyInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(DynamicIdempotencyInterceptor.name);
 
   constructor(
     private readonly idempotencyService: IdempotencyService,
-    private readonly reflector: Reflector,
+    private readonly entitiesService: EntitiesService,
   ) {}
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
@@ -27,50 +26,48 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse();
     const idempotencyKey = request.headers['idempotency-key'] || request.headers['x-idempotency-key'];
     
-    // Get decorator metadata
-    const idempotentOptions = this.reflector.get<IdempotentOptions>(
-      IDEMPOTENT_KEY,
-      context.getHandler(),
-    );
+    // Get entity name from the URL
+    const entityName = request.params?.entityName;
+    
+    // Skip if not a dynamic entity endpoint
+    if (!entityName) {
+      return next.handle();
+    }
 
-    // Check if endpoint should be idempotent
-    const endpoint = request.route?.path || request.url;
-    const method = request.method;
-    
-    // Get configuration from database or decorator
-    const config = await this.idempotencyService.getConfiguration(endpoint);
-    
-    // Determine if idempotency should be applied
-    const shouldApplyIdempotency = idempotentOptions || config;
-    
-    if (!shouldApplyIdempotency) {
+    // Check if entity has idempotency enabled
+    let entityConfig;
+    try {
+      entityConfig = await this.idempotencyService.getEntityIdempotencyConfig(entityName);
+    } catch (error) {
+      // Entity not found or error, proceed without idempotency
+      return next.handle();
+    }
+
+    // If entity doesn't have idempotency enabled, proceed normally
+    if (!entityConfig?.idempotency_enabled) {
       return next.handle();
     }
 
     // Check if method should be idempotent
-    const allowedMethods = idempotentOptions?.methods || config?.methods || ['POST', 'PUT'];
-    if (!allowedMethods.includes(method)) {
+    const allowedMethods = entityConfig.idempotency_methods || ['POST', 'PUT'];
+    if (!allowedMethods.includes(request.method)) {
       return next.handle();
     }
 
-    // Check if key is required
-    const requireKey = idempotentOptions?.requireKey || config?.require_key || false;
-    if (requireKey && !idempotencyKey) {
-      throw new BadRequestException('Idempotency-Key header is required for this endpoint');
-    }
-
-    // If no key provided and not required, proceed without idempotency
+    // If no key provided, proceed without idempotency (unless required)
     if (!idempotencyKey) {
+      // For now, we'll make it optional. You can change this to require keys for certain entities
       return next.handle();
     }
 
     // Check for existing idempotency key
+    const endpoint = `/${entityName}`;
     const idempotencyRequest = {
       key: idempotencyKey,
       endpoint,
-      method,
+      method: request.method,
       userId: request.user?.userId || request.user?.id,
-      entityId: request.params?.entityId,
+      entityId: entityName,
       request: {
         method: request.method,
         url: request.url,
@@ -85,18 +82,19 @@ export class IdempotencyInterceptor implements NestInterceptor {
     if (existingResult.exists) {
       if (existingResult.status === 'completed') {
         // Return cached response
+        this.logger.debug(`Returning cached response for entity ${entityName} with key: ${idempotencyKey}`);
         response.status(existingResult.statusCode || 200);
         return of(existingResult.response);
       } else if (existingResult.status === 'processing') {
-        throw new ConflictException('Request is still being processed');
+        throw new ConflictException(`Request for ${entityName} is still being processed`);
       } else if (existingResult.status === 'failed') {
         // Allow retry for failed requests
-        this.logger.log(`Retrying previously failed request with key: ${idempotencyKey}`);
+        this.logger.log(`Retrying previously failed request for ${entityName} with key: ${idempotencyKey}`);
       }
     }
 
     // Create new idempotency key
-    const ttl = idempotentOptions?.ttl || config?.ttl || 86400000; // 24 hours default
+    const ttl = entityConfig.idempotency_ttl || 86400000; // Use entity-specific TTL or 24 hours default
     await this.idempotencyService.createIdempotencyKey(idempotencyRequest, ttl);
 
     return next.handle().pipe(
@@ -107,11 +105,11 @@ export class IdempotencyInterceptor implements NestInterceptor {
           responseData,
           statusCode,
         );
-        this.logger.debug(`Completed idempotent request with key: ${idempotencyKey}`);
+        this.logger.debug(`Completed idempotent request for ${entityName} with key: ${idempotencyKey}`);
       }),
       catchError(async (error) => {
         await this.idempotencyService.failIdempotencyKey(idempotencyKey, error);
-        this.logger.error(`Failed idempotent request with key: ${idempotencyKey}`, error);
+        this.logger.error(`Failed idempotent request for ${entityName} with key: ${idempotencyKey}`, error);
         return throwError(() => error);
       }),
     );
