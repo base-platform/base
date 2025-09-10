@@ -39,6 +39,27 @@ export class CreateEntityDto {
   @IsArray()
   @IsString({ each: true })
   idempotencyMethods?: string[];
+
+  @ApiProperty({ required: false, description: 'Enable nonce validation for this entity' })
+  @IsOptional()
+  @IsBoolean()
+  nonceEnabled?: boolean;
+
+  @ApiProperty({ required: false, description: 'TTL for nonces in milliseconds' })
+  @IsOptional()
+  @IsNumber()
+  nonceTtl?: number;
+
+  @ApiProperty({ required: false, description: 'HTTP methods to apply nonce validation', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  nonceMethods?: string[];
+
+  @ApiProperty({ required: false, description: 'Require HMAC signature for nonce validation' })
+  @IsOptional()
+  @IsBoolean()
+  nonceRequireSignature?: boolean;
 }
 
 export class UpdateEntityDto {
@@ -77,6 +98,27 @@ export class UpdateEntityDto {
   @IsArray()
   @IsString({ each: true })
   idempotencyMethods?: string[];
+
+  @ApiProperty({ required: false, description: 'Enable nonce validation for this entity' })
+  @IsOptional()
+  @IsBoolean()
+  nonceEnabled?: boolean;
+
+  @ApiProperty({ required: false, description: 'TTL for nonces in milliseconds' })
+  @IsOptional()
+  @IsNumber()
+  nonceTtl?: number;
+
+  @ApiProperty({ required: false, description: 'HTTP methods to apply nonce validation', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  nonceMethods?: string[];
+
+  @ApiProperty({ required: false, description: 'Require HMAC signature for nonce validation' })
+  @IsOptional()
+  @IsBoolean()
+  nonceRequireSignature?: boolean;
 }
 
 export class CreateEntityRecordDto {

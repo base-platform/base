@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/database/prisma/prisma.service';
 import { AccountLockoutService } from '../core/security/account-lockout.service';
 import { MfaService } from '../core/security/mfa.service';
+import { NonceService } from '../common/services/nonce.service';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { RegisterDto, LoginDto, CreateApiKeyDto } from './dto/auth.dto';
@@ -17,6 +18,7 @@ export class AuthService {
     private config: ConfigService,
     private lockoutService: AccountLockoutService,
     private mfaService: MfaService,
+    private nonceService: NonceService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -186,10 +188,20 @@ export class AuthService {
     return newTokens;
   }
 
-  async logout(userId: string) {
+  async logout(userId: string, jti?: string) {
+    // Revoke refresh tokens
     await this.prisma.refreshToken.deleteMany({
       where: { user_id: userId },
     });
+    
+    // Revoke JWT nonces for complete token invalidation
+    if (jti) {
+      await this.nonceService.revokeJwtNonce(jti);
+    } else {
+      // Revoke all JWT nonces for the user
+      await this.nonceService.revokeUserNonces(userId, 'jwt');
+    }
+    
     return { message: 'Logged out successfully' };
   }
 
@@ -237,7 +249,16 @@ export class AuthService {
   }
 
   private async generateTokens(userId: string, email: string) {
-    const payload = { sub: userId, email };
+    // Generate unique JWT ID (nonce) for replay protection
+    const jti = await this.nonceService.generateJwtNonce(userId);
+    const iat = Math.floor(Date.now() / 1000);
+    
+    const payload = { 
+      sub: userId, 
+      email,
+      jti, // JWT ID for tracking and revocation
+      iat, // Issued at timestamp
+    };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {

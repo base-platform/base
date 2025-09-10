@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, RefreshTokenDto, CreateApiKeyDto } from './dto/auth.dto';
 import { LoginWithMfaDto } from './dto/mfa.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtNonceAuthGuard } from './guards/jwt-nonce-auth.guard';
 import { Idempotent } from '../common/decorators/idempotent.decorator';
 import { IdempotencyInterceptor } from '../common/interceptors/idempotency.interceptor';
 
@@ -43,12 +44,12 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtNonceAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout and invalidate refresh tokens' })
   async logout(@Request() req: any) {
-    return this.authService.logout(req.user.userId);
+    return this.authService.logout(req.user.userId, req.user.jti);
   }
 
   @Post('api-keys')

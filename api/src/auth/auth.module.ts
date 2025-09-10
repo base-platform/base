@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { CommonModule } from '../common/common.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { MfaController } from './mfa.controller';
@@ -12,6 +13,7 @@ import { FileUploadController } from './file-upload.controller';
 import { SessionController } from './session.controller';
 import { SecuritySettingsController } from './security-settings.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtNonceStrategy } from './strategies/jwt-nonce.strategy';
 import { ApiKeyStrategy } from './strategies/api-key.strategy';
 import { MfaService } from '../core/security/mfa.service';
 import { AccountLockoutService } from '../core/security/account-lockout.service';
@@ -24,6 +26,7 @@ import { SecuritySettingsService } from '../core/config/security-settings.servic
 
 @Module({
   imports: [
+    CommonModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -37,7 +40,7 @@ import { SecuritySettingsService } from '../core/config/security-settings.servic
     }),
   ],
   controllers: [AuthController, MfaController, OAuthController, ApiKeyManagementController, UserRateLimitController, FileUploadController, SessionController, SecuritySettingsController],
-  providers: [AuthService, MfaService, AccountLockoutService, OAuthService, ApiKeyRotationService, UserRateLimitService, FileUploadSecurityService, SessionSecurityService, SecuritySettingsService, JwtStrategy, ApiKeyStrategy],
+  providers: [AuthService, MfaService, AccountLockoutService, OAuthService, ApiKeyRotationService, UserRateLimitService, FileUploadSecurityService, SessionSecurityService, SecuritySettingsService, JwtStrategy, JwtNonceStrategy, ApiKeyStrategy],
   exports: [AuthService, MfaService, OAuthService, ApiKeyRotationService, UserRateLimitService, FileUploadSecurityService, SessionSecurityService, SecuritySettingsService],
 })
 export class AuthModule {}

@@ -14,6 +14,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntitiesService } from './entities.service';
 import { CreateEntityDto, UpdateEntityDto, CreateEntityRecordDto, UpdateEntityRecordDto } from './dto/entity.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { NonceGuard } from '../common/guards/nonce.guard';
 
 @ApiTags('Entities')
 @Controller('entities')
@@ -58,6 +59,7 @@ export class EntitiesController {
   }
 
   @Post(':entityId/records')
+  @UseGuards(NonceGuard)
   @ApiOperation({ summary: 'Create entity record' })
   async createEntityRecord(
     @Param('entityId') entityId: string,
@@ -88,6 +90,7 @@ export class EntitiesController {
   }
 
   @Put('records/:id')
+  @UseGuards(NonceGuard)
   @ApiOperation({ summary: 'Update entity record' })
   async updateEntityRecord(
     @Param('id') id: string,
@@ -98,6 +101,7 @@ export class EntitiesController {
   }
 
   @Delete('records/:id')
+  @UseGuards(NonceGuard)
   @ApiOperation({ summary: 'Delete entity record' })
   async deleteEntityRecord(@Param('id') id: string) {
     return this.entitiesService.deleteEntityRecord(id);

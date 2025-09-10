@@ -36,6 +36,20 @@ export class EntitiesService {
       },
     });
 
+    // Create nonce configuration if enabled
+    if (dto.nonceEnabled) {
+      await this.prisma.nonceConfig.create({
+        data: {
+          entity_id: entity.id,
+          enabled: true,
+          ttl: dto.nonceTtl ?? 300000, // 5 minutes default
+          methods: dto.nonceMethods ?? ['POST', 'PUT', 'DELETE'],
+          require_signature: dto.nonceRequireSignature ?? false,
+          priority: 10,
+        },
+      });
+    }
+
     await this.createApiEndpoints(entity.id);
 
     return entity;
@@ -63,6 +77,44 @@ export class EntitiesService {
         version: { increment: 1 },
       },
     });
+
+    // Update or create nonce configuration
+    if (dto.nonceEnabled !== undefined) {
+      const existingConfig = await this.prisma.nonceConfig.findFirst({
+        where: { entity_id: id },
+      });
+
+      if (dto.nonceEnabled) {
+        if (existingConfig) {
+          await this.prisma.nonceConfig.update({
+            where: { id: existingConfig.id },
+            data: {
+              enabled: true,
+              ttl: dto.nonceTtl ?? existingConfig.ttl,
+              methods: dto.nonceMethods ?? existingConfig.methods,
+              require_signature: dto.nonceRequireSignature ?? existingConfig.require_signature,
+            },
+          });
+        } else {
+          await this.prisma.nonceConfig.create({
+            data: {
+              entity_id: id,
+              enabled: true,
+              ttl: dto.nonceTtl ?? 300000,
+              methods: dto.nonceMethods ?? ['POST', 'PUT', 'DELETE'],
+              require_signature: dto.nonceRequireSignature ?? false,
+              priority: 10,
+            },
+          });
+        }
+      } else if (existingConfig) {
+        // Disable nonce configuration
+        await this.prisma.nonceConfig.update({
+          where: { id: existingConfig.id },
+          data: { enabled: false },
+        });
+      }
+    }
 
     return updated;
   }
@@ -104,6 +156,11 @@ export class EntitiesService {
     if (!entity) {
       throw new NotFoundException('Entity not found');
     }
+
+    // Delete associated nonce configurations
+    await this.prisma.nonceConfig.deleteMany({
+      where: { entity_id: id },
+    });
 
     await this.prisma.entity.delete({
       where: { id },

@@ -88,6 +88,7 @@ model User {
   rate_limit_rules RateLimitRule[]
   oauth_accounts   OAuthAccount[]
   idempotency_keys IdempotencyKey[]
+  nonces           Nonce[]
   created_rate_limits RateLimitConfig[] @relation("rate_limit_creator")
   updated_rate_limits RateLimitConfig[] @relation("rate_limit_updater")
   created_settings    SystemSetting[]   @relation("setting_creator")
@@ -195,6 +196,7 @@ model Entity {
   entity_records   EntityRecord[]
   api_endpoints    ApiEndpoint[]
   idempotency_keys IdempotencyKey[]
+  nonce_config     NonceConfig?
 
   @@map("entities")
   @@index([name])
@@ -364,6 +366,52 @@ model IdempotencyConfig {
   @@map("idempotency_configs")
   @@index([endpoint])
   @@index([enabled])
+}
+
+// Nonce tracking for replay attack prevention
+model Nonce {
+  id         String   @id @default(uuid()) @db.Uuid
+  nonce      String   @unique @db.VarChar(255)
+  type       String   @db.VarChar(50) // 'jwt' or 'request'
+  user_id    String?  @db.Uuid
+  token_jti  String?  @db.VarChar(255) // JWT ID for token nonces
+  endpoint   String?  @db.VarChar(255) // For request nonces
+  method     String?  @db.VarChar(10)  // HTTP method
+  used_at    DateTime @default(now())
+  expires_at DateTime
+  
+  // Relations
+  user User? @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@map("nonces")
+  @@index([nonce])
+  @@index([expires_at])
+  @@index([user_id])
+  @@index([token_jti])
+}
+
+// Nonce Configuration for entities and endpoints
+model NonceConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  entity_id   String?  @db.Uuid
+  endpoint    String?  @db.VarChar(255) // Specific endpoint pattern
+  enabled     Boolean  @default(true)
+  ttl         Int      @default(300000) // 5 minutes default
+  methods     String[] @default(["POST", "PUT", "DELETE"])
+  require_signature Boolean @default(false) // Whether to require HMAC signature
+  priority    Int      @default(0) // Higher priority configs override lower ones
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  
+  // Relations
+  entity Entity? @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  
+  @@map("nonce_configs")
+  @@unique([entity_id])
+  @@unique([endpoint])
+  @@index([entity_id])
+  @@index([enabled])
+  @@index([priority])
 }
 
 // Audit logging for compliance and debugging

@@ -49,13 +49,15 @@ import {
   XCircle,
   AlertCircle,
   Shield,
-  Info
+  Info,
+  Lock
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { validateDataAgainstSchema, validateJsonSchema, formatValidationErrors } from "@/lib/schema-validator";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SlidingPanel } from "@/components/ui/sliding-panel";
 import { cn } from "@/lib/utils";
 import {
@@ -92,6 +94,10 @@ interface Entity {
   idempotency_enabled?: boolean;
   idempotency_ttl?: number;
   idempotency_methods?: string[];
+  nonce_enabled?: boolean;
+  nonce_ttl?: number;
+  nonce_methods?: string[];
+  nonce_require_signature?: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -317,6 +323,10 @@ export default function EntityBuilderPage() {
     idempotencyEnabled: false,
     idempotencyTtl: 86400000, // 24 hours in milliseconds
     idempotencyMethods: ["POST", "PUT"],
+    nonceEnabled: false,
+    nonceTtl: 300000, // 5 minutes in milliseconds
+    nonceMethods: ["POST", "PUT", "DELETE"],
+    nonceRequireSignature: false,
   });
 
   // Helper function to convert display name to kebab case
@@ -632,6 +642,13 @@ export default function EntityBuilderPage() {
       description: "",
       schema: JSON.stringify(defaultSchema, null, 2),
       isActive: true,
+      idempotencyEnabled: false,
+      idempotencyTtl: 86400000,
+      idempotencyMethods: ["POST", "PUT"],
+      nonceEnabled: false,
+      nonceTtl: 300000,
+      nonceMethods: ["POST", "PUT", "DELETE"],
+      nonceRequireSignature: false,
     });
     setSchemaFields([
       { name: "name", type: "string", required: true, minLength: 1, maxLength: 100 }
@@ -928,6 +945,38 @@ export default function EntityBuilderPage() {
                                   </p>
                                   <p className="text-xs text-gray-400 mt-1">
                                     Duplicate requests with the same Idempotency-Key will return cached responses.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {entity.nonce_enabled && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge 
+                                    variant="outline"
+                                    className="text-xs cursor-help"
+                                  >
+                                    <Lock className="h-3 w-3 mr-1" />
+                                    Nonce
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs p-2">
+                                  <p className="text-xs font-medium mb-1">Nonce Protection Enabled</p>
+                                  <p className="text-xs text-gray-300">
+                                    TTL: {entity.nonce_ttl ? `${entity.nonce_ttl / 1000 / 60} minutes` : '5 minutes'}
+                                    <br />
+                                    Methods: {entity.nonce_methods?.join(', ') || 'POST, PUT, DELETE'}
+                                    {entity.nonce_require_signature && (
+                                      <>
+                                        <br />
+                                        <span className="text-orange-400">✓ Signature Required</span>
+                                      </>
+                                    )}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Each request must have a unique nonce to prevent replay attacks.
                                   </p>
                                 </TooltipContent>
                               </Tooltip>
@@ -1454,6 +1503,202 @@ const response = await fetch('/api/v1/${newEntity.name || 'entity'}/records', {
 // Safe to retry with same key if request fails`}</pre>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                     \u2713 The server will return the cached response for duplicate requests with the same key
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Nonce Configuration */}
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">Nonce Settings (Replay Protection)</h3>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-3 w-3 text-gray-400" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs p-3">
+                        <p className="text-xs font-medium mb-2">What is Nonce?</p>
+                        <p className="text-xs text-gray-300">
+                          Nonce (Number used once) prevents replay attacks by ensuring each request 
+                          can only be processed once. Unlike idempotency, which returns cached responses, 
+                          nonce completely blocks duplicate requests.
+                        </p>
+                        <p className="text-xs font-medium mt-2 mb-1">Use cases:</p>
+                        <ul className="text-xs text-gray-300 space-y-1">
+                          <li>• Financial transactions</li>
+                          <li>• Token exchanges</li>
+                          <li>• Security-critical operations</li>
+                          <li>• Preventing CSRF attacks</li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Prevent replay attacks by requiring unique nonces for each request
+                </p>
+              </div>
+              <Switch
+                id="nonceEnabled"
+                checked={newEntity.nonceEnabled}
+                onCheckedChange={(checked) => setNewEntity({ ...newEntity, nonceEnabled: checked })}
+              />
+            </div>
+            {newEntity.nonceEnabled && (
+              <div className="space-y-4 pl-4 border-l-2 border-gray-200">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label htmlFor="nonceTtl">TTL (Time to Live)</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3 w-3 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs p-3">
+                          <p className="text-xs font-medium mb-2">Nonce Validity Period</p>
+                          <p className="text-xs text-gray-300 mb-2">
+                            How long a nonce remains valid before expiring. Shorter TTLs provide 
+                            better security but may cause issues with slow networks.
+                          </p>
+                          <p className="text-xs font-medium mb-1">Recommendations:</p>
+                          <ul className="text-xs text-gray-300 space-y-1">
+                            <li>• <strong>5 minutes:</strong> High security (default)</li>
+                            <li>• <strong>15 minutes:</strong> Balanced</li>
+                            <li>• <strong>30 minutes:</strong> Tolerant to network delays</li>
+                          </ul>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Select
+                    value={String(newEntity.nonceTtl)}
+                    onValueChange={(value) => setNewEntity({ ...newEntity, nonceTtl: parseInt(value) })}
+                  >
+                    <SelectTrigger id="nonceTtl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="300000">5 minutes</SelectItem>
+                      <SelectItem value="900000">15 minutes</SelectItem>
+                      <SelectItem value="1800000">30 minutes</SelectItem>
+                      <SelectItem value="3600000">1 hour</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label htmlFor="nonceMethods">HTTP Methods</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3 w-3 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs p-3">
+                          <p className="text-xs font-medium mb-2">Protected Methods</p>
+                          <p className="text-xs text-gray-300">
+                            Which HTTP methods require nonce validation. Typically state-changing 
+                            operations should be protected.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="space-y-2">
+                    {["GET", "POST", "PUT", "PATCH", "DELETE"].map((method) => (
+                      <div key={method} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`nonce-method-${method}`}
+                          checked={newEntity.nonceMethods.includes(method)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setNewEntity({
+                                ...newEntity,
+                                nonceMethods: [...newEntity.nonceMethods, method],
+                              });
+                            } else {
+                              setNewEntity({
+                                ...newEntity,
+                                nonceMethods: newEntity.nonceMethods.filter((m) => m !== method),
+                              });
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`nonce-method-${method}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {method}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="nonceRequireSignature">Require Signature</Label>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Info className="h-3 w-3 text-gray-400" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs p-3">
+                              <p className="text-xs font-medium mb-2">HMAC Signature Validation</p>
+                              <p className="text-xs text-gray-300">
+                                When enabled, requests must include an HMAC signature of the request 
+                                data. This provides additional security against tampering.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Require cryptographic signature for enhanced security
+                      </p>
+                    </div>
+                    <Switch
+                      id="nonceRequireSignature"
+                      checked={newEntity.nonceRequireSignature}
+                      onCheckedChange={(checked) => setNewEntity({ ...newEntity, nonceRequireSignature: checked })}
+                    />
+                  </div>
+                </div>
+                
+                {/* Usage Example */}
+                <div className="bg-orange-50 dark:bg-orange-950 p-3 rounded-md">
+                  <h4 className="text-xs font-medium text-orange-900 dark:text-orange-100 mb-2">
+                    How clients should use this:
+                  </h4>
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mb-2">
+                    Send these headers with each request:
+                  </p>
+                  <pre className="text-xs bg-orange-100 dark:bg-orange-900 p-2 rounded overflow-x-auto">
+{`// JavaScript Example
+const nonce = crypto.randomUUID();
+const timestamp = Date.now();
+${newEntity.nonceRequireSignature ? `const signature = await generateHMAC(method, url, nonce, timestamp, body);
+` : ''}
+const response = await fetch('/api/v1/${newEntity.name || 'entity'}/records', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Nonce': nonce,           // Unique nonce
+    'X-Timestamp': timestamp,   // Request timestamp${newEntity.nonceRequireSignature ? `
+    'X-Signature': signature    // HMAC signature` : ''}
+  },
+  body: JSON.stringify({ data: {...} })
+});
+
+// ⚠️ Cannot retry with same nonce - must generate new one`}</pre>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                    ✓ Each request must have a unique nonce that has never been used before
                   </p>
                 </div>
               </div>
