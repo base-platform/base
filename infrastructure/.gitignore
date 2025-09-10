@@ -1,0 +1,28 @@
+# Environment files
+.env
+
+# Backup files
+backups/
+
+# Docker volumes (if using bind mounts)
+data/
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

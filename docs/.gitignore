@@ -1,0 +1,36 @@
+# Documentation build artifacts
+_build/
+.docusaurus/
+build/
+dist/
+
+# Node dependencies (if using documentation generators)
+node_modules/
+
+# Python (if using Sphinx)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.venv
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Generated API docs
+api-reference/
+generated/

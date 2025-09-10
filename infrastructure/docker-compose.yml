@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: base_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-basedb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+      - ./postgres-config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-basedb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - base_network
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: base_valkey
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: ${REDIS_PASSWORD:-redis123}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - valkey_data:/data
+      - ./redis-config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: valkey-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD:-redis123}
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - base_network
+
+  # PostgreSQL Admin Interface (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: base_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - base_network
+    profiles:
+      - admin
+
+  # Redis Commander (Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: base_redis_commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: "local:valkey:6379:0:${REDIS_PASSWORD:-redis123}"
+      HTTP_USER: ${REDIS_COMMANDER_USER:-admin}
+      HTTP_PASSWORD: ${REDIS_COMMANDER_PASSWORD:-admin123}
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    depends_on:
+      valkey:
+        condition: service_healthy
+    networks:
+      - base_network
+    profiles:
+      - admin
+
+volumes:
+  postgres_data:
+    name: base_postgres_data
+  valkey_data:
+    name: base_valkey_data
+  pgadmin_data:
+    name: base_pgadmin_data
+
+networks:
+  base_network:
+    name: base_network
+    driver: bridge
